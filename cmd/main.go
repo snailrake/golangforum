@@ -11,7 +11,6 @@ import (
 )
 
 func main() {
-	// load .env file
 	godotenv.Load()
 
 	postgresURI := os.Getenv("DATABASE_URL")
@@ -26,7 +25,4 @@ func main() {
 	}
 
 	fmt.Println("Connected to database")
-
-	// keep the program running
-	select {}
 }
