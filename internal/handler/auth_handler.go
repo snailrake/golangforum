@@ -18,25 +18,25 @@ func NewAuthHandler(uc *usecase.AuthUseCase) *AuthHandler {
 	return &AuthHandler{UseCase: uc}
 }
 
-func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Используйте метод POST", http.StatusMethodNotAllowed)
+func (h *AuthHandler) Register(response http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodPost {
+		http.Error(response, "Используйте метод POST", http.StatusMethodNotAllowed)
 		return
 	}
 
 	var user domain.User
-	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
-		http.Error(w, "Неверный запрос", http.StatusBadRequest)
+	if err := json.NewDecoder(request.Body).Decode(&user); err != nil {
+		http.Error(response, "Неверный запрос", http.StatusBadRequest)
 		return
 	}
-	defer r.Body.Close()
+	defer request.Body.Close()
 
 	if err := h.UseCase.Register(&user); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(response, err.Error(), http.StatusBadRequest)
 		return
 	}
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	response.WriteHeader(http.StatusCreated)
+	json.NewEncoder(response).Encode(map[string]any{
 		"message": "Пользователь зарегистрирован",
 		"user_id": user.ID,
 	})
