@@ -3,11 +3,12 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"strings"
+
 	"golangforum/internal/domain"
 	"golangforum/internal/usecase"
 	"golangforum/internal/utils"
-	"net/http"
-	"strings"
 )
 
 type AuthHandler struct {
@@ -18,36 +19,34 @@ func NewAuthHandler(uc *usecase.AuthUseCase) *AuthHandler {
 	return &AuthHandler{UseCase: uc}
 }
 
-func (h *AuthHandler) Register(response http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodPost {
-		http.Error(response, "Используйте метод POST", http.StatusMethodNotAllowed)
+func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Используйте POST", http.StatusMethodNotAllowed)
 		return
 	}
+	var u domain.User
+	if err := json.NewDecoder(r.Body).Decode(&u); err != nil {
+		http.Error(w, "Неверный запрос", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
 
-	var user domain.User
-	if err := json.NewDecoder(request.Body).Decode(&user); err != nil {
-		http.Error(response, "Неверный запрос", http.StatusBadRequest)
+	if err := h.UseCase.Register(&u); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	defer request.Body.Close()
-
-	if err := h.UseCase.Register(&user); err != nil {
-		http.Error(response, err.Error(), http.StatusBadRequest)
-		return
-	}
-	response.WriteHeader(http.StatusCreated)
-	json.NewEncoder(response).Encode(map[string]any{
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]any{
 		"message": "Пользователь зарегистрирован",
-		"user_id": user.ID,
+		"user_id": u.ID,
 	})
 }
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Используйте метод POST", http.StatusMethodNotAllowed)
+		http.Error(w, "Используйте POST", http.StatusMethodNotAllowed)
 		return
 	}
-
 	var req struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
@@ -58,23 +57,22 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	accessToken, refreshToken, err := h.UseCase.Login(req.Username, req.Password)
+	access, refresh, err := h.UseCase.Login(req.Username, req.Password)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
 	json.NewEncoder(w).Encode(map[string]string{
-		"access_token":  accessToken,
-		"refresh_token": refreshToken,
+		"access_token":  access,
+		"refresh_token": refresh,
 	})
 }
 
 func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Используйте метод POST", http.StatusMethodNotAllowed)
+		http.Error(w, "Используйте POST", http.StatusMethodNotAllowed)
 		return
 	}
-
 	var req struct {
 		RefreshToken string `json:"refresh_token"`
 	}
@@ -96,24 +94,28 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) Protected(w http.ResponseWriter, r *http.Request) {
-	authHeader := r.Header.Get("Authorization")
-	if authHeader == "" {
-		http.Error(w, "Нет токена", http.StatusUnauthorized)
+	auth := r.Header.Get("Authorization")
+	if auth == "" {
+		http.Error(w, "нет токена", http.StatusUnauthorized)
 		return
 	}
-	parts := strings.Split(authHeader, " ")
+	parts := strings.Split(auth, " ")
 	if len(parts) != 2 || parts[0] != "Bearer" {
-		http.Error(w, "Неверный формат токена", http.StatusUnauthorized)
+		http.Error(w, "неверный формат токена", http.StatusUnauthorized)
 		return
 	}
-	tokenString := parts[1]
 
-	claims, err := utils.VerifyToken(tokenString)
+	claims, err := utils.VerifyToken(parts[1])
 	if err != nil {
-		http.Error(w, "Неверный или просроченный токен", http.StatusUnauthorized)
+		http.Error(w, "неверный или просроченный токен", http.StatusUnauthorized)
+		return
+	}
+	username, ok := claims["username"].(string)
+	if !ok {
+		http.Error(w, "ошибка токена", http.StatusUnauthorized)
 		return
 	}
 	json.NewEncoder(w).Encode(map[string]string{
-		"message": fmt.Sprintf("Добро пожаловать, %s!", claims.Username),
+		"message": fmt.Sprintf("Добро пожаловать, %s!", username),
 	})
 }

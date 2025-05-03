@@ -1,29 +1,21 @@
 package utils
 
 import (
+	"errors"
 	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
 )
 
-type Claims struct {
-	UserID   int    `json:"user_id"`
-	Username string `json:"username"`
-	Role     string `json:"role"`
-	jwt.RegisteredClaims
-}
-
 func GenerateAccessToken(userID int, username, role string) (string, error) {
-	expirationTime := time.Now().Add(15 * time.Minute)
-	claims := &Claims{
-		UserID:   userID,
-		Username: username,
-		Role:     role,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(expirationTime),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-		},
+	exp := time.Now().Add(15 * time.Minute)
+	claims := jwt.MapClaims{
+		"user_id":  userID,
+		"username": username,
+		"role":     role,
+		"exp":      exp.Unix(),
+		"iat":      time.Now().Unix(),
 	}
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
@@ -34,36 +26,37 @@ func GenerateAccessToken(userID int, username, role string) (string, error) {
 }
 
 func GenerateRefreshToken(userID int, username, role string) (string, time.Time, error) {
-	expirationTime := time.Now().Add(30 * 24 * time.Hour)
-	claims := &Claims{
-		UserID:   userID,
-		Username: username,
-		Role:     role,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(expirationTime),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-		},
+	exp := time.Now().Add(30 * 24 * time.Hour)
+	claims := jwt.MapClaims{
+		"user_id":  userID,
+		"username": username,
+		"role":     role,
+		"exp":      exp.Unix(),
+		"iat":      time.Now().Unix(),
 	}
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
 		secret = "secretkey"
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte(secret))
-	return tokenString, expirationTime, err
+	signed, err := token.SignedString([]byte(secret))
+	return signed, exp, err
 }
 
-func VerifyToken(tokenString string) (*Claims, error) {
+func VerifyToken(tokenString string) (jwt.MapClaims, error) {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
 		secret = "secretkey"
 	}
-	claims := &Claims{}
-	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
 		return []byte(secret), nil
 	})
 	if err != nil || !token.Valid {
-		return nil, err
+		return nil, errors.New("invalid token")
+	}
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil, errors.New("invalid token claims")
 	}
 	return claims, nil
 }
