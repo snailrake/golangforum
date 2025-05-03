@@ -4,16 +4,14 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"log"
-	"net/http"
-	"os"
-
 	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
 	"golangforum/internal/handler"
 	"golangforum/internal/repository/postgres"
 	"golangforum/internal/usecase"
-
-	_ "github.com/lib/pq"
+	"log"
+	"net/http"
+	"os"
 )
 
 func main() {
@@ -21,6 +19,7 @@ func main() {
 		log.Fatal("ошибка загрузки .env")
 	}
 
+	// Подключаемся к базе данных
 	dbURL := os.Getenv("DATABASE_URL")
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
@@ -33,16 +32,27 @@ func main() {
 	}
 	fmt.Println("Connected to database")
 
-	repo := postgres.NewRepository(db)
-	authUC := usecase.NewAuthUseCase(repo)
+	// Инициализация репозиториев и use case
+	authRepo := postgres.NewRepository(db)
+	authUC := usecase.NewAuthUseCase(authRepo)
 	authHandler := handler.NewAuthHandler(authUC)
 
+	wsManager := handler.NewWebSocketManager()
+
+	chatRepo := postgres.NewChatRepository(db)
+	chatUC := usecase.NewChatUseCase(chatRepo)
+	chatHandler := handler.NewChatHandler(chatUC, wsManager)
+
+	// Настройка маршрутов
 	mux := http.NewServeMux()
 	mux.HandleFunc("/register", authHandler.Register)
 	mux.HandleFunc("/login", authHandler.Login)
 	mux.HandleFunc("/refresh", authHandler.Refresh)
 	mux.HandleFunc("/protected", authHandler.Protected)
+	mux.HandleFunc("/chat", chatHandler.ServeWS)
+	mux.HandleFunc("/chat/messages", chatHandler.GetAllMessages) // Эндпоинт для получения сообщений
 
+	// Запуск сервера
 	fmt.Println("Server is running on :8080")
 	log.Fatal(http.ListenAndServe(":8080", withCORS(mux)))
 }
