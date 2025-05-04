@@ -43,6 +43,18 @@ func main() {
 	chatUC := usecase.NewChatUseCase(chatRepo)
 	chatHandler := handler.NewChatHandler(chatUC, wsManager)
 
+	topicRepo := postgres.NewTopicRepository(db)
+	topicUC := usecase.NewTopicUseCase(topicRepo)
+	topicHandler := handler.NewTopicHandler(topicUC)
+
+	postRepo := postgres.NewPostRepository(db)
+	postUC := usecase.NewPostUseCase(postRepo)
+	postHandler := handler.NewPostHandler(postUC)
+
+	commentRepo := postgres.NewCommentRepository(db)
+	commentUC := usecase.NewCommentUseCase(commentRepo)
+	commentHandler := handler.NewCommentHandler(commentUC)
+
 	// Настройка маршрутов
 	mux := http.NewServeMux()
 	mux.HandleFunc("/register", authHandler.Register)
@@ -51,6 +63,13 @@ func main() {
 	mux.HandleFunc("/protected", authHandler.Protected)
 	mux.HandleFunc("/chat", chatHandler.ServeWS)
 	mux.HandleFunc("/chat/messages", chatHandler.GetAllMessages) // Эндпоинт для получения сообщений
+
+	mux.HandleFunc("/topics", topicHandler.GetAll)
+	mux.HandleFunc("/topics/create", topicHandler.Create)
+	mux.HandleFunc("/posts", postHandler.GetByTopic)
+	mux.HandleFunc("/posts/create", postHandler.Create)
+	mux.HandleFunc("/comments", commentHandler.GetByPost)
+	mux.HandleFunc("/comments/create", commentHandler.Create)
 
 	// Запуск сервера
 	fmt.Println("Server is running on :8080")
