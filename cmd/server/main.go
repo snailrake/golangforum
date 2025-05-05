@@ -67,6 +67,7 @@ func main() {
 	mux.HandleFunc("/topics", topicHandler.GetAll)
 	mux.HandleFunc("/topics/create", topicHandler.Create)
 	mux.HandleFunc("/posts", postHandler.GetByTopic)
+	mux.HandleFunc("/posts/all", postHandler.GetAll)
 	mux.HandleFunc("/posts/create", postHandler.Create)
 	mux.HandleFunc("/comments", commentHandler.GetByPost)
 	mux.HandleFunc("/comments/create", commentHandler.Create)

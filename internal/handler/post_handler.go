@@ -48,3 +48,13 @@ func (h *PostHandler) GetByTopic(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(posts)
 }
+
+func (h *PostHandler) GetAll(w http.ResponseWriter, r *http.Request) {
+	posts, err := h.UseCase.GetAll()
+	if err != nil {
+		http.Error(w, "could not fetch posts", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(posts)
+}

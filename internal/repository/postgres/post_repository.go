@@ -41,3 +41,34 @@ func (r *PostRepository) GetByTopic(topicID int) ([]domain.Post, error) {
 	}
 	return posts, nil
 }
+
+func (r *PostRepository) GetAll() ([]domain.Post, error) {
+	rows, err := r.DB.Query(
+		"SELECT id, topic_id, title, content, user_id, username, timestamp FROM posts",
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var posts []domain.Post
+	for rows.Next() {
+		var p domain.Post
+		if err := rows.Scan(
+			&p.ID,
+			&p.TopicID,
+			&p.Title,
+			&p.Content,
+			&p.UserID,
+			&p.Username,
+			&p.Timestamp,
+		); err != nil {
+			return nil, err
+		}
+		posts = append(posts, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return posts, nil
+}

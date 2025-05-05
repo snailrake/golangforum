@@ -22,3 +22,7 @@ func (uc *PostUseCase) Create(post *domain.Post) error {
 func (uc *PostUseCase) GetByTopic(topicID int) ([]domain.Post, error) {
 	return uc.Repo.GetByTopic(topicID)
 }
+
+func (uc *PostUseCase) GetAll() ([]domain.Post, error) {
+	return uc.Repo.GetAll()
+}
