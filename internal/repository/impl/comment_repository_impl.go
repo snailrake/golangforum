@@ -1,28 +1,28 @@
-package postgres
+package impl
 
 import (
 	"database/sql"
-	"golangforum/internal/domain"
+	"golangforum/internal/model"
 )
 
 type CommentRepository struct {
-	DB *sql.DB
+	db *sql.DB
 }
 
 func NewCommentRepository(db *sql.DB) *CommentRepository {
-	return &CommentRepository{DB: db}
+	return &CommentRepository{db: db}
 }
 
-func (r *CommentRepository) Create(comment *domain.Comment) error {
-	_, err := r.DB.Exec(
+func (r *CommentRepository) Create(c *model.Comment) error {
+	_, err := r.db.Exec(
 		"INSERT INTO comments (post_id, user_id, username, content, timestamp) VALUES ($1, $2, $3, $4, $5)",
-		comment.PostID, comment.UserID, comment.Username, comment.Content, comment.Timestamp,
+		c.PostID, c.UserID, c.Username, c.Content, c.Timestamp,
 	)
 	return err
 }
 
-func (r *CommentRepository) GetByPost(postID int) ([]domain.Comment, error) {
-	rows, err := r.DB.Query(
+func (r *CommentRepository) GetByPost(postID int) ([]model.Comment, error) {
+	rows, err := r.db.Query(
 		"SELECT id, post_id, user_id, username, content, timestamp FROM comments WHERE post_id = $1",
 		postID,
 	)
@@ -31,13 +31,18 @@ func (r *CommentRepository) GetByPost(postID int) ([]domain.Comment, error) {
 	}
 	defer rows.Close()
 
-	var comments []domain.Comment
+	var res []model.Comment
 	for rows.Next() {
-		var c domain.Comment
+		var c model.Comment
 		if err := rows.Scan(&c.ID, &c.PostID, &c.UserID, &c.Username, &c.Content, &c.Timestamp); err != nil {
 			return nil, err
 		}
-		comments = append(comments, c)
+		res = append(res, c)
 	}
-	return comments, nil
+	return res, nil
+}
+
+func (r *CommentRepository) Delete(id int) error {
+	_, err := r.db.Exec("DELETE FROM comments WHERE id = $1", id)
+	return err
 }

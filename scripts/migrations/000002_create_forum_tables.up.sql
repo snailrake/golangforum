@@ -1,4 +1,3 @@
--- таблица тем
 CREATE TABLE IF NOT EXISTS topics (
   id SERIAL PRIMARY KEY,
   title TEXT NOT NULL,
@@ -6,7 +5,6 @@ CREATE TABLE IF NOT EXISTS topics (
   created_at TIMESTAMP NOT NULL
 );
 
--- таблица постов
 CREATE TABLE IF NOT EXISTS posts (
   id SERIAL PRIMARY KEY,
   topic_id INTEGER NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
@@ -17,7 +15,6 @@ CREATE TABLE IF NOT EXISTS posts (
   timestamp TIMESTAMP NOT NULL
 );
 
--- таблица комментариев
 CREATE TABLE IF NOT EXISTS comments (
   id SERIAL PRIMARY KEY,
   post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,

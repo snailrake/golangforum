@@ -1,0 +1,467 @@
+basePath: /
+definitions:
+  model.Comment:
+    description: Структура комментария с необходимыми полями для хранения данных о
+      комментарии
+    properties:
+      content:
+        description: Текст комментария
+        type: string
+      id:
+        description: ID комментария
+        type: integer
+      post_id:
+        description: ID поста, к которому относится комментарий
+        type: integer
+      timestamp:
+        description: Время создания комментария
+        type: string
+      user_id:
+        description: ID пользователя, оставившего комментарий
+        type: integer
+      username:
+        description: Имя пользователя
+        type: string
+    type: object
+  model.Post:
+    description: Структура поста с необходимыми полями для хранения данных о посте
+    properties:
+      content:
+        description: Текст поста
+        type: string
+      id:
+        description: ID поста
+        type: integer
+      timestamp:
+        description: Время создания поста
+        type: string
+      title:
+        description: Заголовок поста
+        type: string
+      topic_id:
+        description: ID темы, к которой относится пост
+        type: integer
+      user_id:
+        description: ID пользователя, создавшего пост
+        type: integer
+      username:
+        description: Имя пользователя
+        type: string
+    type: object
+  model.Topic:
+    description: Структура темы с необходимыми полями для хранения данных о теме
+    properties:
+      created_at:
+        description: Дата и время создания темы
+        type: string
+      description:
+        description: Описание темы
+        type: string
+      id:
+        description: ID темы
+        type: integer
+      title:
+        description: Заголовок темы
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  title: Golang Форум API
+  version: "1.0"
+paths:
+  /chat:
+    get:
+      consumes:
+      - application/json
+      description: Устанавливает WebSocket соединение для чата
+      parameters:
+      - description: Токен для аутентификации
+        in: query
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "101":
+          description: WebSocket соединение установлено
+          schema:
+            type: string
+        "400":
+          description: Неверный запрос
+          schema:
+            type: string
+        "500":
+          description: Ошибка сервера
+          schema:
+            type: string
+      summary: Установить WebSocket соединение
+      tags:
+      - Чат
+  /chat/messages:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает список всех сообщений чата
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: string
+            type: array
+        "500":
+          description: Ошибка сервера
+          schema:
+            type: string
+      summary: Получить все сообщения чата
+      tags:
+      - Чат
+  /comments:
+    get:
+      consumes:
+      - application/json
+      description: Получает список всех комментариев для заданного поста
+      parameters:
+      - description: ID поста
+        in: query
+        name: post_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Список комментариев
+          schema:
+            items:
+              $ref: '#/definitions/model.Comment'
+            type: array
+        "400":
+          description: Неверный запрос
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Ошибка сервера
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Получить все комментарии для поста
+      tags:
+      - Комментарии
+  /comments/create:
+    post:
+      consumes:
+      - application/json
+      description: Создает новый комментарий для заданного поста
+      parameters:
+      - description: Комментарий
+        in: body
+        name: comment
+        required: true
+        schema:
+          $ref: '#/definitions/model.Comment'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Комментарий создан
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Неверный запрос
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Не авторизован
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Ошибка сервера
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Создать новый комментарий
+      tags:
+      - Комментарии
+  /comments/delete:
+    delete:
+      consumes:
+      - application/json
+      description: Удаляет комментарий по ID
+      parameters:
+      - description: ID комментария
+        in: query
+        name: comment_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Комментарий удален
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Неверный запрос
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Ошибка сервера
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Удалить комментарий
+      tags:
+      - Комментарии
+  /posts:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает список всех постов для указанной темы
+      parameters:
+      - description: ID темы
+        in: query
+        name: topic_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Список постов
+          schema:
+            items:
+              $ref: '#/definitions/model.Post'
+            type: array
+        "400":
+          description: Неверный topic_id
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Ошибка сервера
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Получить все посты по теме
+      tags:
+      - Посты
+  /posts/all:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает список всех постов
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Список всех постов
+          schema:
+            items:
+              $ref: '#/definitions/model.Post'
+            type: array
+        "500":
+          description: Ошибка сервера
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Получить все посты
+      tags:
+      - Посты
+  /posts/create:
+    post:
+      consumes:
+      - application/json
+      description: Создает новый пост в указанной теме
+      parameters:
+      - description: Данные поста
+        in: body
+        name: post
+        required: true
+        schema:
+          $ref: '#/definitions/model.Post'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Пост успешно создан
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Неверный запрос
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Не авторизован
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Ошибка сервера
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Создать новый пост
+      tags:
+      - Посты
+  /posts/delete:
+    delete:
+      consumes:
+      - application/json
+      description: Удаляет пост по его ID
+      parameters:
+      - description: ID поста
+        in: query
+        name: post_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Пост успешно удален
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Неверный post_id
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Ошибка сервера
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Удалить пост
+      tags:
+      - Посты
+  /topics:
+    get:
+      consumes:
+      - application/json
+      description: Возвращает список всех тем форума
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Список тем
+          schema:
+            items:
+              $ref: '#/definitions/model.Topic'
+            type: array
+        "500":
+          description: Ошибка сервера
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Получить все темы
+      tags:
+      - Темы
+  /topics/create:
+    post:
+      consumes:
+      - application/json
+      description: Создает новую тему с заголовком и описанием, используя структуру
+        Topic
+      parameters:
+      - description: Данные темы
+        in: body
+        name: topic
+        required: true
+        schema:
+          $ref: '#/definitions/model.Topic'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Тема успешно создана
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Неверный запрос
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Ошибка сервера
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Создать тему
+      tags:
+      - Темы
+  /topics/delete:
+    delete:
+      consumes:
+      - application/json
+      description: Удаляет тему по ее ID
+      parameters:
+      - description: ID темы
+        in: query
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Тема успешно удалена
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Неверный id
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Ошибка сервера
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Удалить тему
+      tags:
+      - Темы
+schemes:
+- http
+swagger: "2.0"

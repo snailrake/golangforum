@@ -2,91 +2,115 @@ package handler
 
 import (
 	"encoding/json"
-	"errors"
-	"golangforum/internal/domain"
-	"golangforum/internal/usecase"
-	"golangforum/internal/utils"
 	"net/http"
 	"strconv"
-	"strings"
-	"time"
+
+	"golangforum/internal/client"
+	"golangforum/internal/model"
+	"golangforum/internal/usecase"
 )
 
 type CommentHandler struct {
-	UseCase *usecase.CommentUseCase
+	uc   *usecase.CommentUseCase
+	auth *client.AuthClient
 }
 
-func NewCommentHandler(uc *usecase.CommentUseCase) *CommentHandler {
-	return &CommentHandler{UseCase: uc}
+func NewCommentHandler(uc *usecase.CommentUseCase, auth *client.AuthClient) *CommentHandler {
+	return &CommentHandler{uc: uc, auth: auth}
 }
 
+// Create godoc
+// @Summary Создать новый комментарий
+// @Description Создает новый комментарий для заданного поста
+// @Tags Комментарии
+// @Accept json
+// @Produce json
+// @Param comment body model.Comment true "Комментарий"
+// @Success 201 {object} map[string]string "Комментарий создан"
+// @Failure 400 {object} map[string]string "Неверный запрос"
+// @Failure 401 {object} map[string]string "Не авторизован"
+// @Failure 500 {object} map[string]string "Ошибка сервера"
+// @Router /comments/create [post]
 func (h *CommentHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var c domain.Comment
-
-	// Извлекаем username из JWT
-	username, err := getUsernameFromJWT(r)
-	if err != nil {
-		http.Error(w, "unauthorized: "+err.Error(), http.StatusUnauthorized)
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
-	// Декодируем тело запроса
+	user, err := h.auth.GetUsername(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	var c model.Comment
 	if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
 	defer r.Body.Close()
 
-	// Присваиваем извлеченный username
-	c.Username = username
-	c.Timestamp = time.Now()
-
-	// Создаем комментарий через use case
-	if err := h.UseCase.Create(&c); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	if err := h.uc.Create(user, &c); err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{"message": "comment created"})
+	json.NewEncoder(w).Encode(map[string]string{"message": "created"})
 }
 
+// GetByPost godoc
+// @Summary Получить все комментарии для поста
+// @Description Получает список всех комментариев для заданного поста
+// @Tags Комментарии
+// @Accept json
+// @Produce json
+// @Param post_id query int true "ID поста"
+// @Success 200 {array} model.Comment "Список комментариев"
+// @Failure 400 {object} map[string]string "Неверный запрос"
+// @Failure 500 {object} map[string]string "Ошибка сервера"
+// @Router /comments [get]
 func (h *CommentHandler) GetByPost(w http.ResponseWriter, r *http.Request) {
-	idStr := r.URL.Query().Get("post_id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		http.Error(w, "invalid post_id", http.StatusBadRequest)
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	comments, err := h.UseCase.GetByPost(id)
+	id, err := strconv.Atoi(r.URL.Query().Get("post_id"))
 	if err != nil {
-		http.Error(w, "could not fetch comments", http.StatusInternalServerError)
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	comments, err := h.uc.GetByPost(id)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(comments)
 }
 
-func getUsernameFromJWT(r *http.Request) (string, error) {
-	// Извлекаем JWT из заголовка Authorization
-	tokenString := r.Header.Get("Authorization")
-	if tokenString == "" {
-		return "", errors.New("token is missing")
+// Delete godoc
+// @Summary Удалить комментарий
+// @Description Удаляет комментарий по ID
+// @Tags Комментарии
+// @Accept json
+// @Produce json
+// @Param comment_id query int true "ID комментария"
+// @Success 200 {object} map[string]string "Комментарий удален"
+// @Failure 400 {object} map[string]string "Неверный запрос"
+// @Failure 500 {object} map[string]string "Ошибка сервера"
+// @Router /comments/delete [delete]
+func (h *CommentHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
 	}
-
-	// Убираем "Bearer " из токена
-	tokenString = strings.TrimPrefix(tokenString, "Bearer ")
-
-	// Проверяем и парсим токен через VerifyToken
-	claims, err := utils.VerifyToken(tokenString)
+	id, err := strconv.Atoi(r.URL.Query().Get("comment_id"))
 	if err != nil {
-		return "", err
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
 	}
-
-	// Извлекаем username из claims
-	username, ok := claims["username"].(string)
-	if !ok {
-		return "", errors.New("username not found in token")
+	if err := h.uc.Delete(id); err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
 	}
-	return username, nil
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "deleted"})
 }

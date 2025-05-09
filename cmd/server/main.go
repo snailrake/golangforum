@@ -1,84 +1,91 @@
-// cmd/server/main.go
 package main
 
 import (
 	"database/sql"
-	"fmt"
-	"github.com/joho/godotenv"
-	_ "github.com/lib/pq"
-	"golangforum/internal/handler"
-	"golangforum/internal/repository/postgres"
-	"golangforum/internal/usecase"
+	"golangforum/internal/repository/impl"
 	"log"
 	"net/http"
 	"os"
+
+	"github.com/joho/godotenv"
+	_ "github.com/lib/pq"
+	"github.com/rs/zerolog"
+	httpSwagger "github.com/swaggo/http-swagger"
+	_ "golangforum/docs"
+	"golangforum/internal/client"
+	"golangforum/internal/handler"
+	"golangforum/internal/usecase"
 )
 
+var logger zerolog.Logger
+
+func init() {
+	logger = zerolog.New(os.Stdout).With().Timestamp().Logger()
+}
+
+// @title API сервиса форума
+// @version 1.0
+// @host localhost:8080
+// @BasePath /
+// @schemes http
 func main() {
 	if err := godotenv.Load(); err != nil {
-		log.Fatal("ошибка загрузки .env")
+		logger.Fatal().Err(err).Msg("failed to load .env")
 	}
 
-	// Подключаемся к базе данных
-	dbURL := os.Getenv("DATABASE_URL")
-	db, err := sql.Open("postgres", dbURL)
+	db, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal().Err(err).Msg("failed to open database connection")
 	}
 	defer db.Close()
 
 	if err := db.Ping(); err != nil {
-		log.Fatal(err)
+		logger.Fatal().Err(err).Msg("failed to ping database")
 	}
-	fmt.Println("Connected to database")
 
-	// Инициализация репозиториев и use case
-	authRepo := postgres.NewRepository(db)
-	authUC := usecase.NewAuthUseCase(authRepo)
-	authHandler := handler.NewAuthHandler(authUC)
+	authClient, err := client.NewClient(os.Getenv("AUTH_SERVICE_ADDR"))
+	if err != nil {
+		logger.Fatal().Err(err).Msg("failed to initialize auth client")
+	}
 
-	wsManager := handler.NewWebSocketManager()
+	chatHandler := handler.NewChatHandler(
+		usecase.NewChatUseCase(impl.NewChatRepository(db)),
+		authClient,
+	)
+	topicHandler := handler.NewTopicHandler(
+		usecase.NewTopicUseCase(impl.NewTopicRepository(db)),
+	)
+	postHandler := handler.NewPostHandler(
+		usecase.NewPostUseCase(impl.NewPostRepository(db)),
+		authClient,
+	)
+	commentHandler := handler.NewCommentHandler(
+		usecase.NewCommentUseCase(impl.NewCommentRepository(db)),
+		authClient,
+	)
 
-	chatRepo := postgres.NewChatRepository(db)
-	chatUC := usecase.NewChatUseCase(chatRepo)
-	chatHandler := handler.NewChatHandler(chatUC, wsManager)
-
-	topicRepo := postgres.NewTopicRepository(db)
-	topicUC := usecase.NewTopicUseCase(topicRepo)
-	topicHandler := handler.NewTopicHandler(topicUC)
-
-	postRepo := postgres.NewPostRepository(db)
-	postUC := usecase.NewPostUseCase(postRepo)
-	postHandler := handler.NewPostHandler(postUC)
-
-	commentRepo := postgres.NewCommentRepository(db)
-	commentUC := usecase.NewCommentUseCase(commentRepo)
-	commentHandler := handler.NewCommentHandler(commentUC)
-
-	// Настройка маршрутов
 	mux := http.NewServeMux()
-	mux.HandleFunc("/register", authHandler.Register)
-	mux.HandleFunc("/login", authHandler.Login)
-	mux.HandleFunc("/refresh", authHandler.Refresh)
-	mux.HandleFunc("/protected", authHandler.Protected)
 	mux.HandleFunc("/chat", chatHandler.ServeWS)
-	mux.HandleFunc("/chat/messages", chatHandler.GetAllMessages) // Эндпоинт для получения сообщений
-
+	mux.HandleFunc("/chat/messages", chatHandler.GetAllMessages)
 	mux.HandleFunc("/topics", topicHandler.GetAll)
 	mux.HandleFunc("/topics/create", topicHandler.Create)
+	mux.HandleFunc("/topics/delete", topicHandler.Delete)
 	mux.HandleFunc("/posts", postHandler.GetByTopic)
 	mux.HandleFunc("/posts/all", postHandler.GetAll)
 	mux.HandleFunc("/posts/create", postHandler.Create)
+	mux.HandleFunc("/posts/delete", postHandler.Delete)
 	mux.HandleFunc("/comments", commentHandler.GetByPost)
 	mux.HandleFunc("/comments/create", commentHandler.Create)
+	mux.HandleFunc("/comments/delete", commentHandler.Delete)
+	mux.Handle("/swagger/", httpSwagger.WrapHandler)
 
-	// Запуск сервера
-	fmt.Println("Server is running on :8080")
+	logger.Info().Msg("Starting server on :8080")
 	log.Fatal(http.ListenAndServe(":8080", withCORS(mux)))
 }
 
 func withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		logger.Debug().Str("method", r.Method).Str("url", r.URL.String()).Msg("handling request")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type,Authorization")

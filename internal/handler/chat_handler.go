@@ -1,126 +1,96 @@
-// handler/chat_handler.go
 package handler
 
 import (
 	"encoding/json"
-	"fmt"
-	"github.com/gorilla/websocket"
-	"golangforum/internal/domain"
-	"golangforum/internal/usecase"
-	"golangforum/internal/utils"
-	"log"
+	"errors"
 	"net/http"
-	"time"
+
+	"github.com/gorilla/websocket"
+	"golangforum/internal/client"
+	"golangforum/internal/usecase"
 )
 
 type ChatHandler struct {
-	UseCase          *usecase.ChatUseCase
-	WebSocketManager *WebSocketManager // Используем уже существующий WebSocketManager
+	UC *usecase.ChatUseCase
+	AC *client.AuthClient
 }
 
-func NewChatHandler(uc *usecase.ChatUseCase, wsManager *WebSocketManager) *ChatHandler {
-	return &ChatHandler{UseCase: uc, WebSocketManager: wsManager}
+func NewChatHandler(uc *usecase.ChatUseCase, ac *client.AuthClient) *ChatHandler {
+	return &ChatHandler{UC: uc, AC: ac}
 }
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
-}
+var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
 
-// Метод для получения всех сообщений
+// GetAllMessages godoc
+// @Summary Получить все сообщения чата
+// @Description Возвращает список всех сообщений чата
+// @Tags Чат
+// @Accept json
+// @Produce json
+// @Success 200 {array} string "OK"
+// @Failure 500 {object} string "Ошибка сервера"
+// @Router /chat/messages [get]
 func (h *ChatHandler) GetAllMessages(w http.ResponseWriter, r *http.Request) {
-	messages, err := h.UseCase.GetAllMessages() // Получаем все сообщения
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	msgs, err := h.UC.GetAllMessages()
 	if err != nil {
-		http.Error(w, "Error fetching messages", http.StatusInternalServerError)
+		http.Error(w, "could not fetch messages", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(messages) // Отправляем сообщения в ответ
+	_ = json.NewEncoder(w).Encode(msgs)
 }
 
+// ServeWS godoc
+// @Summary Установить WebSocket соединение
+// @Description Устанавливает WebSocket соединение для чата
+// @Tags Чат
+// @Accept json
+// @Produce json
+// @Param token query string true "Токен для аутентификации"
+// @Success 101 {object} string "WebSocket соединение установлено"
+// @Failure 400 {object} string "Неверный запрос"
+// @Failure 500 {object} string "Ошибка сервера"
+// @Router /chat [get]
 func (h *ChatHandler) ServeWS(w http.ResponseWriter, r *http.Request) {
-	// Извлекаем токен из query параметров URL
-	token := r.URL.Query().Get("token")
-
-	// Для неавторизованных пользователей, устанавливаем имя как 'Гость'
-	var username string
-	var userIDInt int // Объявляем переменную, которая будет хранить ID пользователя
-	if token != "" {
-		// Проверяем токен
-		claims, err := utils.VerifyToken(token)
-		if err != nil {
-			log.Println("Error verifying token:", err)
-			http.Error(w, "Invalid token", http.StatusUnauthorized)
-			return
-		}
-
-		// Извлекаем данные из токена
-		userID, ok := claims["user_id"].(float64)
-		if !ok {
-			log.Println("Invalid token data: user_id not found")
-			http.Error(w, "Invalid token data", http.StatusUnauthorized)
-			return
-		}
-
-		userIDInt = int(userID) // Преобразуем в int
-		username, ok = claims["username"].(string)
-		if !ok {
-			log.Println("Invalid token data: username not found")
-			http.Error(w, "Invalid token data", http.StatusUnauthorized)
-			return
-		}
-	} else {
-		// Если токена нет, установим имя как 'Гость'
-		username = "Гость"
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
 	}
-
-	// Создаем WebSocket соединение
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Println("Error upgrading to WebSocket:", err)
+		http.Error(w, "upgrade failed", http.StatusInternalServerError)
 		return
 	}
 	defer conn.Close()
 
-	// Логируем подключение
-	log.Println("WebSocket connection established")
-
-	// Добавляем клиента в WebSocket-менеджер
-	h.WebSocketManager.AddClient(conn)
-
-	// Слушаем и обрабатываем сообщения
-	for {
-		_, msg, err := conn.ReadMessage()
-		if err != nil {
-			log.Printf("Error reading message: %v\n", err)
-			break // Закрываем соединение при ошибке
-		}
-
-		// Только если пользователь авторизован, сохраняем сообщение в базе данных
-		if token != "" {
-			message := &domain.Message{
-				UserID:    userIDInt,
-				Username:  username,
-				Content:   string(msg),
-				Timestamp: time.Now(),
-			}
-
-			// Сохраняем сообщение в базе данных
-			err = h.UseCase.SaveMessage(message)
-			if err != nil {
-				log.Println("Error saving message:", err)
-				conn.WriteMessage(websocket.TextMessage, []byte("Error saving message"))
-				continue
-			}
-		}
-
-		// Отправляем сообщение всем подключенным клиентам
-		h.WebSocketManager.BroadcastMessage([]byte(fmt.Sprintf(`{"username": "%s", "content": "%s"}`, username, string(msg))))
-		log.Println("Message sent: ", string(msg))
+	user, id, err := h.getUser(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
 	}
+	h.UC.HandleConnection(conn, user, id)
+}
 
-	// Убираем клиента после отключения
-	h.WebSocketManager.RemoveClient(conn)
-	log.Println("WebSocket connection closed")
+func (h *ChatHandler) getUser(r *http.Request) (string, int, error) {
+	t := r.URL.Query().Get("token")
+	if t == "" {
+		return "", 0, errors.New("token required")
+	}
+	claims, err := h.AC.VerifyToken(t)
+	if err != nil {
+		return "", 0, err
+	}
+	uid, ok := claims["user_id"].(float64)
+	if !ok {
+		return "", 0, errors.New("invalid user_id")
+	}
+	name, ok := claims["username"].(string)
+	if !ok {
+		return "", 0, errors.New("invalid username")
+	}
+	return name, int(uid), nil
 }
