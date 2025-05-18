@@ -9,7 +9,6 @@ import (
 	"go.uber.org/mock/gomock"
 	"golangforum/internal/model"
 	"golangforum/internal/repository/mocks"
-	"golangforum/internal/usecase"
 )
 
 func TestPostUseCase_Create(t *testing.T) {
@@ -27,7 +26,7 @@ func TestPostUseCase_Create(t *testing.T) {
 
 	mockRepo.EXPECT().Create(gomock.Eq(post)).Return(nil).Times(1)
 
-	uc := usecase.NewPostUseCase(mockRepo)
+	uc := NewPostUseCase(mockRepo)
 	err := uc.Create("testUser", post)
 
 	assert.NoError(t, err)
@@ -47,7 +46,7 @@ func TestPostUseCase_Create_ValidationError(t *testing.T) {
 		Content: "",
 	}
 
-	uc := usecase.NewPostUseCase(mockRepo)
+	uc := NewPostUseCase(mockRepo)
 	err := uc.Create("testUser", post)
 
 	assert.Error(t, err)
@@ -66,7 +65,7 @@ func TestPostUseCase_GetByTopic(t *testing.T) {
 
 	mockRepo.EXPECT().GetByTopic(1).Return(posts, nil).Times(1)
 
-	uc := usecase.NewPostUseCase(mockRepo)
+	uc := NewPostUseCase(mockRepo)
 	result, err := uc.GetByTopic(1)
 
 	assert.NoError(t, err)
@@ -82,7 +81,7 @@ func TestPostUseCase_GetByTopic_Error(t *testing.T) {
 
 	mockRepo.EXPECT().GetByTopic(1).Return(nil, errors.New("database error")).Times(1)
 
-	uc := usecase.NewPostUseCase(mockRepo)
+	uc := NewPostUseCase(mockRepo)
 	result, err := uc.GetByTopic(1)
 
 	assert.Error(t, err)
@@ -102,7 +101,7 @@ func TestPostUseCase_GetAll(t *testing.T) {
 
 	mockRepo.EXPECT().GetAll().Return(posts, nil).Times(1)
 
-	uc := usecase.NewPostUseCase(mockRepo)
+	uc := NewPostUseCase(mockRepo)
 	result, err := uc.GetAll()
 
 	assert.NoError(t, err)
@@ -118,7 +117,7 @@ func TestPostUseCase_GetAll_Error(t *testing.T) {
 
 	mockRepo.EXPECT().GetAll().Return(nil, errors.New("database error")).Times(1)
 
-	uc := usecase.NewPostUseCase(mockRepo)
+	uc := NewPostUseCase(mockRepo)
 	result, err := uc.GetAll()
 
 	assert.Error(t, err)
@@ -133,7 +132,7 @@ func TestPostUseCase_Delete(t *testing.T) {
 
 	mockRepo.EXPECT().Delete(1).Return(nil).Times(1)
 
-	uc := usecase.NewPostUseCase(mockRepo)
+	uc := NewPostUseCase(mockRepo)
 	err := uc.Delete(1)
 
 	assert.NoError(t, err)
@@ -147,7 +146,7 @@ func TestPostUseCase_Delete_Error(t *testing.T) {
 
 	mockRepo.EXPECT().Delete(1).Return(errors.New("delete error")).Times(1)
 
-	uc := usecase.NewPostUseCase(mockRepo)
+	uc := NewPostUseCase(mockRepo)
 	err := uc.Delete(1)
 
 	assert.Error(t, err)

@@ -12,7 +12,6 @@ import (
 	"go.uber.org/mock/gomock"
 	"golangforum/internal/model"
 	"golangforum/internal/repository/mocks"
-	"golangforum/internal/usecase"
 )
 
 func TestChatUseCase_GetAllMessages(t *testing.T) {
@@ -26,7 +25,7 @@ func TestChatUseCase_GetAllMessages(t *testing.T) {
 	}
 	mockRepo.EXPECT().GetAllMessages().Return(msgs, nil)
 
-	uc := usecase.NewChatUseCase(mockRepo)
+	uc := NewChatUseCase(mockRepo)
 	result, err := uc.GetAllMessages()
 	assert.NoError(t, err)
 	assert.Len(t, result, 2)
@@ -40,7 +39,7 @@ func TestChatUseCase_GetAllMessages_Error(t *testing.T) {
 	mockRepo := mocks.NewMockChatRepository(ctrl)
 	mockRepo.EXPECT().GetAllMessages().Return(nil, errors.New("fail"))
 
-	uc := usecase.NewChatUseCase(mockRepo)
+	uc := NewChatUseCase(mockRepo)
 	result, err := uc.GetAllMessages()
 	assert.Nil(t, result)
 	assert.Error(t, err)
@@ -62,7 +61,7 @@ func TestChatUseCase_HandleConnection_ValidMessage(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		uc := usecase.NewChatUseCase(mockRepo)
+		uc := NewChatUseCase(mockRepo)
 		uc.HandleConnection(conn, "testUser", 1)
 	})
 	server := httptest.NewServer(handler)
