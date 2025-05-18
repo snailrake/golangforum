@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -11,11 +12,11 @@ import (
 )
 
 type PostHandler struct {
-	UseCase    *usecase.PostUseCase
+	UseCase    usecase.PostUseCase
 	AuthClient *client.AuthClient
 }
 
-func NewPostHandler(uc *usecase.PostUseCase, authClient *client.AuthClient) *PostHandler {
+func NewPostHandler(uc usecase.PostUseCase, authClient *client.AuthClient) *PostHandler {
 	return &PostHandler{UseCase: uc, AuthClient: authClient}
 }
 
@@ -48,7 +49,12 @@ func (h *PostHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.UseCase.Create(username, &p); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		switch {
+		case errors.Is(err, usecase.ErrInvalidPostData):
+			http.Error(w, "invalid post data", http.StatusBadRequest)
+		default:
+			http.Error(w, "internal error", http.StatusInternalServerError)
+		}
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
@@ -130,7 +136,12 @@ func (h *PostHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.UseCase.Delete(id); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		switch {
+		case errors.Is(err, usecase.ErrPostNotFound):
+			http.Error(w, "post not found", http.StatusBadRequest)
+		default:
+			http.Error(w, "internal error", http.StatusInternalServerError)
+		}
 		return
 	}
 	w.WriteHeader(http.StatusOK)

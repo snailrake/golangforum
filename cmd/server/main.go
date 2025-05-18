@@ -14,7 +14,7 @@ import (
 	_ "golangforum/docs"
 	"golangforum/internal/client"
 	"golangforum/internal/handler"
-	"golangforum/internal/usecase"
+	usecaseImpl "golangforum/internal/usecase/impl"
 )
 
 var logger zerolog.Logger
@@ -49,18 +49,18 @@ func main() {
 	}
 
 	chatHandler := handler.NewChatHandler(
-		usecase.NewChatUseCase(impl.NewChatRepository(db)),
+		usecaseImpl.NewChatUseCase(impl.NewChatRepository(db)),
 		authClient,
 	)
 	topicHandler := handler.NewTopicHandler(
-		usecase.NewTopicUseCase(impl.NewTopicRepository(db)),
+		usecaseImpl.NewTopicUseCase(impl.NewTopicRepository(db)),
 	)
 	postHandler := handler.NewPostHandler(
-		usecase.NewPostUseCase(impl.NewPostRepository(db)),
+		usecaseImpl.NewPostUseCase(impl.NewPostRepository(db)),
 		authClient,
 	)
 	commentHandler := handler.NewCommentHandler(
-		usecase.NewCommentUseCase(impl.NewCommentRepository(db)),
+		usecaseImpl.NewCommentUseCase(impl.NewCommentRepository(db)),
 		authClient,
 	)
 

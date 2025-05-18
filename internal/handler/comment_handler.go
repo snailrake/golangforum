@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -11,11 +12,11 @@ import (
 )
 
 type CommentHandler struct {
-	uc   *usecase.CommentUseCase
+	uc   usecase.CommentUseCase
 	auth *client.AuthClient
 }
 
-func NewCommentHandler(uc *usecase.CommentUseCase, auth *client.AuthClient) *CommentHandler {
+func NewCommentHandler(uc usecase.CommentUseCase, auth *client.AuthClient) *CommentHandler {
 	return &CommentHandler{uc: uc, auth: auth}
 }
 
@@ -49,7 +50,12 @@ func (h *CommentHandler) Create(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	if err := h.uc.Create(user, &c); err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		switch {
+		case errors.Is(err, usecase.ErrInvalidCommentData):
+			http.Error(w, "invalid comment", http.StatusBadRequest)
+		default:
+			http.Error(w, "internal error", http.StatusInternalServerError)
+		}
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
@@ -108,7 +114,12 @@ func (h *CommentHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.uc.Delete(id); err != nil {
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		switch {
+		case errors.Is(err, usecase.ErrCommentNotFound):
+			http.Error(w, "comment not found", http.StatusBadRequest)
+		default:
+			http.Error(w, "internal error", http.StatusInternalServerError)
+		}
 		return
 	}
 	w.WriteHeader(http.StatusOK)

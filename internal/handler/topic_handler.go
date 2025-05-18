@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"golangforum/internal/model"
 	"net/http"
 	"strconv"
@@ -10,10 +11,10 @@ import (
 )
 
 type TopicHandler struct {
-	UseCase *usecase.TopicUseCase
+	UseCase usecase.TopicUseCase
 }
 
-func NewTopicHandler(uc *usecase.TopicUseCase) *TopicHandler {
+func NewTopicHandler(uc usecase.TopicUseCase) *TopicHandler {
 	return &TopicHandler{UseCase: uc}
 }
 
@@ -46,7 +47,12 @@ func (h *TopicHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.UseCase.Create(topic.Title, topic.Description); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		switch {
+		case errors.Is(err, usecase.ErrInvalidTopicData):
+			http.Error(w, "invalid topic data", http.StatusBadRequest)
+		default:
+			http.Error(w, "internal error", http.StatusInternalServerError)
+		}
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
@@ -98,7 +104,12 @@ func (h *TopicHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.UseCase.Delete(id); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		switch {
+		case errors.Is(err, usecase.ErrTopicNotFound):
+			http.Error(w, "topic not found", http.StatusBadRequest)
+		default:
+			http.Error(w, "internal error", http.StatusInternalServerError)
+		}
 		return
 	}
 	w.WriteHeader(http.StatusOK)
